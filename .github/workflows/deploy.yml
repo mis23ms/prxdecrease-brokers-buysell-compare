@@ -1,0 +1,98 @@
+# ============================================================
+# 台股跌幅 vs 外資買賣超 Dashboard — GitHub Actions 自動部署
+#
+# 排程: 週一~五 台灣時間 17:30 (UTC 09:30)
+#       此時 TWSE 外資資料已更新，不會產生日期不同步問題
+#
+# 流程: 執行 Python → 產生 HTML → 部署到 gh-pages → GitHub Pages 上線
+# ============================================================
+
+name: 📊 更新 Dashboard
+
+on:
+  # 排程：週一到週五，台灣時間 17:30 (UTC 09:30)
+  schedule:
+    - cron: '30 9 * * 1-5'
+
+  # 手動觸發（在 Actions tab 按 Run workflow）
+  workflow_dispatch:
+
+  # push 到 main 也觸發（方便測試）
+  push:
+    branches:
+      - main
+    paths:
+      - 'stock_foreign_dashboard.py'
+      - '.github/workflows/deploy.yml'
+      - 'requirements.txt'
+
+# 設定權限（部署 gh-pages 需要 write）
+permissions:
+  contents: write
+  pages: write
+
+# 同一時間只允許一個 deploy（避免衝突）
+concurrency:
+  group: deploy-dashboard
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    # 設定時區，讓 Python datetime.now() 取到台灣時間
+    env:
+      TZ: Asia/Taipei
+
+    steps:
+      # 1. 取出 repo 程式碼
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      # 2. 安裝 Python
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # 3. 快取 pip 套件（加速後續 build）
+      - name: 📦 Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # 4. 安裝套件
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 5. 執行主程式，產生 HTML
+      - name: 🚀 Run dashboard script
+        run: python stock_foreign_dashboard.py
+
+      # 6. 準備部署目錄 + 取得台灣時間
+      - name: 📁 Prepare deploy directory
+        run: |
+          mkdir -p public
+          # 複製 HTML 為 index.html（GitHub Pages 預設首頁）
+          cp stock_foreign_dashboard.html public/index.html
+          # 也保留原檔名（方便直連）
+          cp stock_foreign_dashboard.html public/
+          # 防止 Jekyll 處理
+          touch public/.nojekyll
+          # 取得台灣日期給 commit message 用
+          echo "TZ_DATE=$(date +'%Y/%m/%d %H:%M')" >> $GITHUB_ENV
+
+      # 7. 部署到 gh-pages 分支
+      - name: 🌐 Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          # commit message 帶上日期方便追蹤
+          commit_message: "📊 更新 Dashboard - ${{ env.TZ_DATE }}"
+          # 強制覆蓋（我們不需要歷史 HTML）
+          force_orphan: true
