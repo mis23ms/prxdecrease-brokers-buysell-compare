@@ -1,0 +1,1551 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>跌幅 vs 外資買賣超 Dashboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  :root {
+    --bg-primary: #0a0e17;
+    --bg-card: #111827;
+    --bg-card-alt: #1a2332;
+    --border: #1e2d3d;
+    --text-primary: #e2e8f0;
+    --text-secondary: #8899aa;
+    --text-muted: #4a5568;
+    --accent-green: #10b981;
+    --accent-green-bg: rgba(16, 185, 129, 0.08);
+    --accent-red: #ef4444;
+    --accent-red-bg: rgba(239, 68, 68, 0.08);
+    --accent-amber: #f59e0b;
+    --accent-blue: #3b82f6;
+    --header-bg: #0d1320;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans TC', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  .top-bar {
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .top-bar h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    background: linear-gradient(135deg, #e2e8f0, #94a3b8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .top-bar .meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .stats-bar {
+    display: flex;
+    gap: 24px;
+    padding: 16px 40px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .stat-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .stat-dot.green { background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green); }
+  .stat-dot.red { background: var(--accent-red); box-shadow: 0 0 8px var(--accent-red); }
+  .stat-dot.gray { background: var(--text-muted); }
+
+  .stat-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .stat-value.green { color: var(--accent-green); }
+  .stat-value.red { color: var(--accent-red); }
+  .stat-value.gray { color: var(--text-secondary); }
+
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px 24px 60px;
+  }
+
+  .section {
+    margin-bottom: 32px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    padding: 0 4px;
+  }
+
+  .section-icon {
+    font-size: 20px;
+  }
+
+  .section-title {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .section-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+  }
+
+  .section.buying .section-title { color: var(--accent-green); }
+  .section.buying .section-count {
+    background: var(--accent-green-bg);
+    color: var(--accent-green);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+  }
+
+  .section.selling .section-title { color: var(--accent-red); }
+  .section.selling .section-count {
+    background: var(--accent-red-bg);
+    color: var(--accent-red);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+
+  .section.nodata .section-title { color: var(--text-muted); }
+  .section.nodata .section-count {
+    background: rgba(74, 85, 104, 0.15);
+    color: var(--text-muted);
+    border: 1px solid rgba(74, 85, 104, 0.2);
+  }
+
+  .table-wrap {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+
+  thead th {
+    background: var(--header-bg);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 12px 14px;
+    text-align: right;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  thead th:nth-child(1),
+  thead th:nth-child(2),
+  thead th:nth-child(3) {
+    text-align: left;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid rgba(30, 45, 61, 0.4);
+    transition: background 0.15s;
+  }
+
+  tbody tr:hover {
+    background: rgba(59, 130, 246, 0.04);
+  }
+
+  td {
+    padding: 10px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+
+  .rank-cell {
+    text-align: center;
+    color: var(--text-muted);
+    font-weight: 600;
+    width: 44px;
+  }
+
+  .code-cell {
+    text-align: left;
+    color: var(--accent-blue);
+    font-weight: 600;
+  }
+
+  .name-cell {
+    text-align: left;
+    font-family: 'Noto Sans TC', sans-serif;
+    font-weight: 500;
+    color: var(--text-primary);
+    min-width: 100px;
+  }
+
+  .num-cell {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .pos { color: var(--accent-red); }
+  .neg { color: var(--accent-green); }
+  .na { color: var(--text-muted); font-style: italic; }
+
+  .buy-highlight {
+    background: var(--accent-green-bg);
+  }
+  .buy-highlight span {
+    color: var(--accent-green) !important;
+    font-weight: 700;
+  }
+
+  .sell-highlight {
+    background: var(--accent-red-bg);
+  }
+  .sell-highlight span {
+    color: var(--accent-red) !important;
+    font-weight: 700;
+  }
+
+  .footer {
+    text-align: center;
+    padding: 24px;
+    color: var(--text-muted);
+    font-size: 12px;
+    border-top: 1px solid var(--border);
+    margin-top: 40px;
+  }
+
+  .empty-msg {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  /* 台股漲跌顏色: 漲=紅, 跌=綠 (符合台灣習慣) */
+  /* 注意: 這裡的 pos/neg class 已對應台灣慣例 */
+  /* pos (>0) = 紅色 (漲), neg (<0) = 綠色 (跌) */
+
+  .data-source-bar {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 40px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+
+  .source-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .source-label {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .source-date {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent-blue);
+    background: rgba(59, 130, 246, 0.1);
+    padding: 2px 10px;
+    border-radius: 4px;
+  }
+
+  .date-warning {
+    color: var(--accent-amber);
+    font-size: 12.5px;
+    font-weight: 600;
+    background: rgba(245, 158, 11, 0.1);
+    padding: 4px 14px;
+    border-radius: 6px;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    margin-left: auto;
+  }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <h1>📊 跌幅排行 vs 外資買賣超 Dashboard</h1>
+  <div class="meta">
+    更新時間: 2026/02/13 18:07 ｜ 上市 5日+10日 跌幅合併 共 82 檔
+  </div>
+</div>
+
+<div class="data-source-bar">
+  <div class="source-item">
+    <span class="source-label">📈 5日跌幅</span>
+    <span class="source-date">02/11</span>
+  </div>
+  <div class="source-item">
+    <span class="source-label">📉 10日跌幅</span>
+    <span class="source-date">02/11</span>
+  </div>
+  <div class="source-item">
+    <span class="source-label">🏦 外資買賣超</span>
+    <span class="source-date">02/11</span>
+  </div>
+  
+</div>
+
+<div class="stats-bar">
+  <div class="stat-item">
+    <div class="stat-dot green"></div>
+    <div>
+      <div class="stat-label">外資逢低布局</div>
+      <div class="stat-value green">36</div>
+    </div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-dot red"></div>
+    <div>
+      <div class="stat-label">外資持續看空</div>
+      <div class="stat-value red">46</div>
+    </div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-dot gray"></div>
+    <div>
+      <div class="stat-label">無外資資料</div>
+      <div class="stat-value gray">0</div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- 🟢 外資逢低布局 -->
+  <div class="section buying">
+    <div class="section-header">
+      <span class="section-icon">🟢</span>
+      <span class="section-title">外資逢低布局</span>
+      <span class="section-count">36 檔</span>
+    </div>
+    <div class="table-wrap">
+      <table><thead><tr><th>原排名</th><th>代號</th><th>名稱</th><th>收盤價</th><th>5日漲跌</th><th>5日跌幅</th><th>10日漲跌</th><th>10日跌幅</th><th>成交量</th><th>外資買(張)</th><th>外資賣(張)</th><th>外資淨買賣</th></tr></thead><tbody>
+            <tr>
+                <td class="rank-cell">26</td>
+                <td class="code-cell">2303</td>
+                <td class="name-cell">聯電</td>
+                <td class="num-cell">62.80</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-13.10</span></td>
+                <td class="num-cell"><span class="neg">-17.26%</span></td>
+                <td class="num-cell"><span class="pos">+87,671.00</span></td>
+                <td class="num-cell"><span class="pos">+54,933</span></td>
+                <td class="num-cell"><span class="pos">+14,613</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+40,320</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">29</td>
+                <td class="code-cell">2344</td>
+                <td class="name-cell">華邦電</td>
+                <td class="num-cell">105.50</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-21.50</span></td>
+                <td class="num-cell"><span class="neg">-16.93%</span></td>
+                <td class="num-cell"><span class="pos">+203,300.00</span></td>
+                <td class="num-cell"><span class="pos">+61,146</span></td>
+                <td class="num-cell"><span class="pos">+41,172</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+19,974</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">15</td>
+                <td class="code-cell">1605</td>
+                <td class="name-cell">華新</td>
+                <td class="num-cell">34.70</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-8.30</span></td>
+                <td class="num-cell"><span class="neg">-19.30%</span></td>
+                <td class="num-cell"><span class="pos">+29,728.00</span></td>
+                <td class="num-cell"><span class="pos">+12,961</span></td>
+                <td class="num-cell"><span class="pos">+8,421</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+4,540</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">8</td>
+                <td class="code-cell">2485</td>
+                <td class="name-cell">兆赫</td>
+                <td class="num-cell">36.80</td>
+                <td class="num-cell"><span class="neg">-8.45</span></td>
+                <td class="num-cell"><span class="neg">-18.67%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+26,868.00</span></td>
+                <td class="num-cell"><span class="pos">+7,074</span></td>
+                <td class="num-cell"><span class="pos">+4,447</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+2,627</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">1</td>
+                <td class="code-cell">00738U</td>
+                <td class="name-cell">期元大道瓊白銀</td>
+                <td class="num-cell">66.95</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-28.25</span></td>
+                <td class="num-cell"><span class="neg">-29.67%</span></td>
+                <td class="num-cell"><span class="pos">+17,683.00</span></td>
+                <td class="num-cell"><span class="pos">+2,455</span></td>
+                <td class="num-cell"><span class="pos">+247</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+2,207</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">27</td>
+                <td class="code-cell">2355</td>
+                <td class="name-cell">敬鵬</td>
+                <td class="num-cell">38.35</td>
+                <td class="num-cell"><span class="neg">-5.40</span></td>
+                <td class="num-cell"><span class="neg">-12.34%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+7,770.00</span></td>
+                <td class="num-cell"><span class="pos">+3,540</span></td>
+                <td class="num-cell"><span class="pos">+1,609</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+1,931</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">12</td>
+                <td class="code-cell">4989</td>
+                <td class="name-cell">榮科</td>
+                <td class="num-cell">50.20</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-12.80</span></td>
+                <td class="num-cell"><span class="neg">-20.32%</span></td>
+                <td class="num-cell"><span class="pos">+8,191.00</span></td>
+                <td class="num-cell"><span class="pos">+1,958</span></td>
+                <td class="num-cell"><span class="pos">+256</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+1,702</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">17</td>
+                <td class="code-cell">8150</td>
+                <td class="name-cell">南茂</td>
+                <td class="num-cell">53.40</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-12.20</span></td>
+                <td class="num-cell"><span class="neg">-18.60%</span></td>
+                <td class="num-cell"><span class="pos">+14,820.00</span></td>
+                <td class="num-cell"><span class="pos">+7,029</span></td>
+                <td class="num-cell"><span class="pos">+5,650</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+1,379</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">1</td>
+                <td class="code-cell">3138</td>
+                <td class="name-cell">耀登</td>
+                <td class="num-cell">155.50</td>
+                <td class="num-cell"><span class="neg">-42.50</span></td>
+                <td class="num-cell"><span class="neg">-21.46%</span></td>
+                <td class="num-cell"><span class="neg">-30.50</span></td>
+                <td class="num-cell"><span class="neg">-16.40%</span></td>
+                <td class="num-cell"><span class="pos">+4,984.00</span></td>
+                <td class="num-cell"><span class="pos">+1,611</span></td>
+                <td class="num-cell"><span class="pos">+959</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+652</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">12</td>
+                <td class="code-cell">3701</td>
+                <td class="name-cell">大眾控</td>
+                <td class="num-cell">47.20</td>
+                <td class="num-cell"><span class="neg">-9.30</span></td>
+                <td class="num-cell"><span class="neg">-16.46%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+2,265.00</span></td>
+                <td class="num-cell"><span class="pos">+602</span></td>
+                <td class="num-cell"><span class="pos">+311</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+290</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">15</td>
+                <td class="code-cell">6443</td>
+                <td class="name-cell">元晶</td>
+                <td class="num-cell">37.10</td>
+                <td class="num-cell"><span class="neg">-7.00</span></td>
+                <td class="num-cell"><span class="neg">-15.87%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+39,641.00</span></td>
+                <td class="num-cell"><span class="pos">+9,987</span></td>
+                <td class="num-cell"><span class="pos">+9,701</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+286</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">40</td>
+                <td class="code-cell">1789</td>
+                <td class="name-cell">神隆</td>
+                <td class="num-cell">21.65</td>
+                <td class="num-cell"><span class="neg">-2.55</span></td>
+                <td class="num-cell"><span class="neg">-10.54%</span></td>
+                <td class="num-cell"><span class="neg">-3.85</span></td>
+                <td class="num-cell"><span class="neg">-15.10%</span></td>
+                <td class="num-cell"><span class="pos">+2,079.00</span></td>
+                <td class="num-cell"><span class="pos">+677</span></td>
+                <td class="num-cell"><span class="pos">+418</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+259</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">43</td>
+                <td class="code-cell">5258</td>
+                <td class="name-cell">虹堡</td>
+                <td class="num-cell">51.10</td>
+                <td class="num-cell"><span class="neg">-5.80</span></td>
+                <td class="num-cell"><span class="neg">-10.19%</span></td>
+                <td class="num-cell"><span class="neg">-9.30</span></td>
+                <td class="num-cell"><span class="neg">-15.40%</span></td>
+                <td class="num-cell"><span class="pos">+1,396.00</span></td>
+                <td class="num-cell"><span class="pos">+447</span></td>
+                <td class="num-cell"><span class="pos">+197</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+250</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">43</td>
+                <td class="code-cell">2365</td>
+                <td class="name-cell">昆盈</td>
+                <td class="num-cell">35.25</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-6.35</span></td>
+                <td class="num-cell"><span class="neg">-15.26%</span></td>
+                <td class="num-cell"><span class="pos">+3,945.00</span></td>
+                <td class="num-cell"><span class="pos">+1,275</span></td>
+                <td class="num-cell"><span class="pos">+1,033</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+242</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">44</td>
+                <td class="code-cell">6890</td>
+                <td class="name-cell">來億-KY</td>
+                <td class="num-cell">199.00</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-35.50</span></td>
+                <td class="num-cell"><span class="neg">-15.14%</span></td>
+                <td class="num-cell"><span class="pos">+1,983.00</span></td>
+                <td class="num-cell"><span class="pos">+706</span></td>
+                <td class="num-cell"><span class="pos">+477</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+228</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">25</td>
+                <td class="code-cell">7795</td>
+                <td class="name-cell">長廣</td>
+                <td class="num-cell">346.50</td>
+                <td class="num-cell"><span class="neg">-50.00</span></td>
+                <td class="num-cell"><span class="neg">-12.61%</span></td>
+                <td class="num-cell"><span class="neg">-76.00</span></td>
+                <td class="num-cell"><span class="neg">-17.99%</span></td>
+                <td class="num-cell"><span class="pos">+785.00</span></td>
+                <td class="num-cell"><span class="pos">+256</span></td>
+                <td class="num-cell"><span class="pos">+79</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+177</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">42</td>
+                <td class="code-cell">6806</td>
+                <td class="name-cell">森崴能源</td>
+                <td class="num-cell">43.80</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-7.90</span></td>
+                <td class="num-cell"><span class="neg">-15.28%</span></td>
+                <td class="num-cell"><span class="pos">+1,132.00</span></td>
+                <td class="num-cell"><span class="pos">+374</span></td>
+                <td class="num-cell"><span class="pos">+225</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+149</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">2</td>
+                <td class="code-cell">6934</td>
+                <td class="name-cell">心誠鎂</td>
+                <td class="num-cell">118.50</td>
+                <td class="num-cell"><span class="neg">-30.50</span></td>
+                <td class="num-cell"><span class="neg">-20.47%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+479.00</span></td>
+                <td class="num-cell"><span class="pos">+141</span></td>
+                <td class="num-cell"><span class="pos">+6</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+135</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">32</td>
+                <td class="code-cell">6873</td>
+                <td class="name-cell">泓德能源</td>
+                <td class="num-cell">108.00</td>
+                <td class="num-cell"><span class="neg">-14.00</span></td>
+                <td class="num-cell"><span class="neg">-11.48%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+1,122.00</span></td>
+                <td class="num-cell"><span class="pos">+346</span></td>
+                <td class="num-cell"><span class="pos">+213</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+132</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">28</td>
+                <td class="code-cell">6155</td>
+                <td class="name-cell">鈞寶</td>
+                <td class="num-cell">45.40</td>
+                <td class="num-cell"><span class="neg">-6.30</span></td>
+                <td class="num-cell"><span class="neg">-12.19%</span></td>
+                <td class="num-cell"><span class="neg">-11.40</span></td>
+                <td class="num-cell"><span class="neg">-20.07%</span></td>
+                <td class="num-cell"><span class="pos">+941.00</span></td>
+                <td class="num-cell"><span class="pos">+358</span></td>
+                <td class="num-cell"><span class="pos">+232</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+126</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">48</td>
+                <td class="code-cell">4585</td>
+                <td class="name-cell">達明</td>
+                <td class="num-cell">337.00</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-59.50</span></td>
+                <td class="num-cell"><span class="neg">-15.01%</span></td>
+                <td class="num-cell"><span class="pos">+353.00</span></td>
+                <td class="num-cell"><span class="pos">+112</span></td>
+                <td class="num-cell"><span class="pos">+35</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+77</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">34</td>
+                <td class="code-cell">3051</td>
+                <td class="name-cell">力特</td>
+                <td class="num-cell">22.15</td>
+                <td class="num-cell"><span class="neg">-2.80</span></td>
+                <td class="num-cell"><span class="neg">-11.22%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+606.00</span></td>
+                <td class="num-cell"><span class="pos">+216</span></td>
+                <td class="num-cell"><span class="pos">+152</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+64</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">16</td>
+                <td class="code-cell">1735</td>
+                <td class="name-cell">日勝化</td>
+                <td class="num-cell">16.30</td>
+                <td class="num-cell"><span class="neg">-2.85</span></td>
+                <td class="num-cell"><span class="neg">-14.88%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+324.00</span></td>
+                <td class="num-cell"><span class="pos">+71</span></td>
+                <td class="num-cell"><span class="pos">+9</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+62</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">31</td>
+                <td class="code-cell">2429</td>
+                <td class="name-cell">銘旺科</td>
+                <td class="num-cell">55.60</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-11.00</span></td>
+                <td class="num-cell"><span class="neg">-16.52%</span></td>
+                <td class="num-cell"><span class="pos">+357.00</span></td>
+                <td class="num-cell"><span class="pos">+144</span></td>
+                <td class="num-cell"><span class="pos">+82</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+62</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">38</td>
+                <td class="code-cell">1325</td>
+                <td class="name-cell">恆大</td>
+                <td class="num-cell">30.25</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-5.55</span></td>
+                <td class="num-cell"><span class="neg">-15.50%</span></td>
+                <td class="num-cell"><span class="pos">+458.00</span></td>
+                <td class="num-cell"><span class="pos">+121</span></td>
+                <td class="num-cell"><span class="pos">+62</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+59</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">31</td>
+                <td class="code-cell">3669</td>
+                <td class="name-cell">圓展</td>
+                <td class="num-cell">32.75</td>
+                <td class="num-cell"><span class="neg">-4.35</span></td>
+                <td class="num-cell"><span class="neg">-11.73%</span></td>
+                <td class="num-cell"><span class="neg">-6.25</span></td>
+                <td class="num-cell"><span class="neg">-16.03%</span></td>
+                <td class="num-cell"><span class="pos">+195.00</span></td>
+                <td class="num-cell"><span class="pos">+95</span></td>
+                <td class="num-cell"><span class="pos">+52</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+43</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">21</td>
+                <td class="code-cell">2466</td>
+                <td class="name-cell">冠西電</td>
+                <td class="num-cell">52.60</td>
+                <td class="num-cell"><span class="neg">-8.30</span></td>
+                <td class="num-cell"><span class="neg">-13.63%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+584.00</span></td>
+                <td class="num-cell"><span class="pos">+144</span></td>
+                <td class="num-cell"><span class="pos">+125</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+19</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">48</td>
+                <td class="code-cell">3376</td>
+                <td class="name-cell">新日興</td>
+                <td class="num-cell">192.50</td>
+                <td class="num-cell"><span class="neg">-21.00</span></td>
+                <td class="num-cell"><span class="neg">-9.84%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+2,526.00</span></td>
+                <td class="num-cell"><span class="pos">+712</span></td>
+                <td class="num-cell"><span class="pos">+692</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+19</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">13</td>
+                <td class="code-cell">6887</td>
+                <td class="name-cell">寶綠特-KY</td>
+                <td class="num-cell">49.30</td>
+                <td class="num-cell"><span class="neg">-9.70</span></td>
+                <td class="num-cell"><span class="neg">-16.44%</span></td>
+                <td class="num-cell"><span class="neg">-13.20</span></td>
+                <td class="num-cell"><span class="neg">-21.12%</span></td>
+                <td class="num-cell"><span class="pos">+130.00</span></td>
+                <td class="num-cell"><span class="pos">+31</span></td>
+                <td class="num-cell"><span class="pos">+13</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+18</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">24</td>
+                <td class="code-cell">4764</td>
+                <td class="name-cell">雙鍵</td>
+                <td class="num-cell">102.50</td>
+                <td class="num-cell"><span class="neg">-15.00</span></td>
+                <td class="num-cell"><span class="neg">-12.77%</span></td>
+                <td class="num-cell"><span class="neg">-22.50</span></td>
+                <td class="num-cell"><span class="neg">-18.00%</span></td>
+                <td class="num-cell"><span class="pos">+1,355.00</span></td>
+                <td class="num-cell"><span class="pos">+444</span></td>
+                <td class="num-cell"><span class="pos">+426</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+18</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">5</td>
+                <td class="code-cell">3025</td>
+                <td class="name-cell">星通</td>
+                <td class="num-cell">54.10</td>
+                <td class="num-cell"><span class="neg">-13.10</span></td>
+                <td class="num-cell"><span class="neg">-19.49%</span></td>
+                <td class="num-cell"><span class="neg">-21.80</span></td>
+                <td class="num-cell"><span class="neg">-28.72%</span></td>
+                <td class="num-cell"><span class="pos">+1,147.00</span></td>
+                <td class="num-cell"><span class="pos">+392</span></td>
+                <td class="num-cell"><span class="pos">+376</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+16</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">35</td>
+                <td class="code-cell">8467</td>
+                <td class="name-cell">波力-KY</td>
+                <td class="num-cell">170.50</td>
+                <td class="num-cell"><span class="neg">-21.50</span></td>
+                <td class="num-cell"><span class="neg">-11.20%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+40.00</span></td>
+                <td class="num-cell"><span class="pos">+23</span></td>
+                <td class="num-cell"><span class="pos">+11</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+12</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">27</td>
+                <td class="code-cell">1732</td>
+                <td class="name-cell">毛寶</td>
+                <td class="num-cell">27.65</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-5.75</span></td>
+                <td class="num-cell"><span class="neg">-17.22%</span></td>
+                <td class="num-cell"><span class="pos">+246.00</span></td>
+                <td class="num-cell"><span class="pos">+42</span></td>
+                <td class="num-cell"><span class="pos">+32</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+10</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">17</td>
+                <td class="code-cell">2424</td>
+                <td class="name-cell">隴華</td>
+                <td class="num-cell">32.90</td>
+                <td class="num-cell"><span class="neg">-5.65</span></td>
+                <td class="num-cell"><span class="neg">-14.66%</span></td>
+                <td class="num-cell"><span class="neg">-6.90</span></td>
+                <td class="num-cell"><span class="neg">-17.34%</span></td>
+                <td class="num-cell"><span class="pos">+69.00</span></td>
+                <td class="num-cell"><span class="pos">+15</span></td>
+                <td class="num-cell"><span class="pos">+7</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+8</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">8</td>
+                <td class="code-cell">3645</td>
+                <td class="name-cell">達邁</td>
+                <td class="num-cell">55.60</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-15.80</span></td>
+                <td class="num-cell"><span class="neg">-22.13%</span></td>
+                <td class="num-cell"><span class="pos">+2,046.00</span></td>
+                <td class="num-cell"><span class="pos">+426</span></td>
+                <td class="num-cell"><span class="pos">+421</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+5</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">47</td>
+                <td class="code-cell">5484</td>
+                <td class="name-cell">慧友</td>
+                <td class="num-cell">37.80</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-6.70</span></td>
+                <td class="num-cell"><span class="neg">-15.06%</span></td>
+                <td class="num-cell"><span class="pos">+167.00</span></td>
+                <td class="num-cell"><span class="pos">+32</span></td>
+                <td class="num-cell"><span class="pos">+28</span></td>
+                <td class="num-cell buy-highlight"><span class="pos">+4</span></td>
+            </tr></tbody></table>
+    </div>
+  </div>
+
+  <!-- 🔴 外資持續看空 -->
+  <div class="section selling">
+    <div class="section-header">
+      <span class="section-icon">🔴</span>
+      <span class="section-title">外資持續看空</span>
+      <span class="section-count">46 檔</span>
+    </div>
+    <div class="table-wrap">
+      <table><thead><tr><th>原排名</th><th>代號</th><th>名稱</th><th>收盤價</th><th>5日漲跌</th><th>5日跌幅</th><th>10日漲跌</th><th>10日跌幅</th><th>成交量</th><th>外資買(張)</th><th>外資賣(張)</th><th>外資淨買賣</th></tr></thead><tbody>
+            <tr>
+                <td class="rank-cell">33</td>
+                <td class="code-cell">1802</td>
+                <td class="name-cell">台玻</td>
+                <td class="num-cell">47.05</td>
+                <td class="num-cell"><span class="neg">-6.05</span></td>
+                <td class="num-cell"><span class="neg">-11.39%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+93,106.00</span></td>
+                <td class="num-cell"><span class="pos">+15,369</span></td>
+                <td class="num-cell"><span class="pos">+19,765</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-4,396</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">6</td>
+                <td class="code-cell">1795</td>
+                <td class="name-cell">美時</td>
+                <td class="num-cell">292.50</td>
+                <td class="num-cell"><span class="neg">-70.50</span></td>
+                <td class="num-cell"><span class="neg">-19.42%</span></td>
+                <td class="num-cell"><span class="neg">-53.50</span></td>
+                <td class="num-cell"><span class="neg">-15.46%</span></td>
+                <td class="num-cell"><span class="pos">+9,862.00</span></td>
+                <td class="num-cell"><span class="pos">+1,016</span></td>
+                <td class="num-cell"><span class="pos">+4,545</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-3,529</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">41</td>
+                <td class="code-cell">3715</td>
+                <td class="name-cell">定穎投控</td>
+                <td class="num-cell">141.00</td>
+                <td class="num-cell"><span class="neg">-16.50</span></td>
+                <td class="num-cell"><span class="neg">-10.48%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+12,619.00</span></td>
+                <td class="num-cell"><span class="pos">+1,853</span></td>
+                <td class="num-cell"><span class="pos">+4,840</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-2,987</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">47</td>
+                <td class="code-cell">4916</td>
+                <td class="name-cell">事欣科</td>
+                <td class="num-cell">60.20</td>
+                <td class="num-cell"><span class="neg">-6.60</span></td>
+                <td class="num-cell"><span class="neg">-9.88%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+7,453.00</span></td>
+                <td class="num-cell"><span class="pos">+499</span></td>
+                <td class="num-cell"><span class="pos">+3,033</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-2,534</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">11</td>
+                <td class="code-cell">1528</td>
+                <td class="name-cell">恩德</td>
+                <td class="num-cell">22.30</td>
+                <td class="num-cell"><span class="neg">-4.50</span></td>
+                <td class="num-cell"><span class="neg">-16.79%</span></td>
+                <td class="num-cell"><span class="neg">-7.20</span></td>
+                <td class="num-cell"><span class="neg">-24.41%</span></td>
+                <td class="num-cell"><span class="pos">+12,981.00</span></td>
+                <td class="num-cell"><span class="pos">+2,355</span></td>
+                <td class="num-cell"><span class="pos">+4,745</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-2,390</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">10</td>
+                <td class="code-cell">6285</td>
+                <td class="name-cell">啟碁</td>
+                <td class="num-cell">172.00</td>
+                <td class="num-cell"><span class="neg">-35.50</span></td>
+                <td class="num-cell"><span class="neg">-17.11%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+21,985.00</span></td>
+                <td class="num-cell"><span class="pos">+5,842</span></td>
+                <td class="num-cell"><span class="pos">+7,755</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-1,913</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">19</td>
+                <td class="code-cell">8422</td>
+                <td class="name-cell">可寧衛*</td>
+                <td class="num-cell">32.80</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-7.40</span></td>
+                <td class="num-cell"><span class="neg">-18.41%</span></td>
+                <td class="num-cell"><span class="pos">+27,349.00</span></td>
+                <td class="num-cell"><span class="pos">+7,680</span></td>
+                <td class="num-cell"><span class="pos">+9,406</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-1,726</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">4</td>
+                <td class="code-cell">8110</td>
+                <td class="name-cell">華東</td>
+                <td class="num-cell">61.30</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-20.10</span></td>
+                <td class="num-cell"><span class="neg">-24.69%</span></td>
+                <td class="num-cell"><span class="pos">+40,478.00</span></td>
+                <td class="num-cell"><span class="pos">+11,935</span></td>
+                <td class="num-cell"><span class="pos">+13,519</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-1,584</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">30</td>
+                <td class="code-cell">2367</td>
+                <td class="name-cell">燿華</td>
+                <td class="num-cell">52.50</td>
+                <td class="num-cell"><span class="neg">-7.00</span></td>
+                <td class="num-cell"><span class="neg">-11.76%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+73,695.00</span></td>
+                <td class="num-cell"><span class="pos">+17,245</span></td>
+                <td class="num-cell"><span class="pos">+18,482</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-1,237</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">36</td>
+                <td class="code-cell">1717</td>
+                <td class="name-cell">長興</td>
+                <td class="num-cell">56.80</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-10.50</span></td>
+                <td class="num-cell"><span class="neg">-15.60%</span></td>
+                <td class="num-cell"><span class="pos">+14,196.00</span></td>
+                <td class="num-cell"><span class="pos">+4,037</span></td>
+                <td class="num-cell"><span class="pos">+5,191</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-1,154</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">39</td>
+                <td class="code-cell">4958</td>
+                <td class="name-cell">臻鼎-KY</td>
+                <td class="num-cell">178.00</td>
+                <td class="num-cell"><span class="neg">-21.00</span></td>
+                <td class="num-cell"><span class="neg">-10.55%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+9,544.00</span></td>
+                <td class="num-cell"><span class="pos">+3,264</span></td>
+                <td class="num-cell"><span class="pos">+4,370</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-1,107</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">36</td>
+                <td class="code-cell">3006</td>
+                <td class="name-cell">晶豪科</td>
+                <td class="num-cell">154.00</td>
+                <td class="num-cell"><span class="neg">-19.00</span></td>
+                <td class="num-cell"><span class="neg">-10.98%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+11,837.00</span></td>
+                <td class="num-cell"><span class="pos">+2,958</span></td>
+                <td class="num-cell"><span class="pos">+3,979</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-1,021</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">18</td>
+                <td class="code-cell">2413</td>
+                <td class="name-cell">環科</td>
+                <td class="num-cell">41.50</td>
+                <td class="num-cell"><span class="neg">-6.90</span></td>
+                <td class="num-cell"><span class="neg">-14.26%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+6,313.00</span></td>
+                <td class="num-cell"><span class="pos">+1,401</span></td>
+                <td class="num-cell"><span class="pos">+2,026</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-625</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">10</td>
+                <td class="code-cell">6133</td>
+                <td class="name-cell">金橋</td>
+                <td class="num-cell">22.90</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-6.05</span></td>
+                <td class="num-cell"><span class="neg">-20.90%</span></td>
+                <td class="num-cell"><span class="pos">+2,094.00</span></td>
+                <td class="num-cell"><span class="pos">+444</span></td>
+                <td class="num-cell"><span class="pos">+1,069</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-625</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">14</td>
+                <td class="code-cell">6209</td>
+                <td class="name-cell">今國光</td>
+                <td class="num-cell">58.30</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-14.50</span></td>
+                <td class="num-cell"><span class="neg">-19.92%</span></td>
+                <td class="num-cell"><span class="pos">+2,084.00</span></td>
+                <td class="num-cell"><span class="pos">+240</span></td>
+                <td class="num-cell"><span class="pos">+799</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-559</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">3</td>
+                <td class="code-cell">6451</td>
+                <td class="name-cell">訊芯-KY</td>
+                <td class="num-cell">166.00</td>
+                <td class="num-cell"><span class="neg">-42.00</span></td>
+                <td class="num-cell"><span class="neg">-20.19%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+3,252.00</span></td>
+                <td class="num-cell"><span class="pos">+436</span></td>
+                <td class="num-cell"><span class="pos">+938</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-502</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">45</td>
+                <td class="code-cell">4906</td>
+                <td class="name-cell">正文</td>
+                <td class="num-cell">25.70</td>
+                <td class="num-cell"><span class="neg">-2.85</span></td>
+                <td class="num-cell"><span class="neg">-9.98%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+2,589.00</span></td>
+                <td class="num-cell"><span class="pos">+554</span></td>
+                <td class="num-cell"><span class="pos">+1,044</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-490</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">49</td>
+                <td class="code-cell">2374</td>
+                <td class="name-cell">佳能</td>
+                <td class="num-cell">77.50</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-13.60</span></td>
+                <td class="num-cell"><span class="neg">-14.93%</span></td>
+                <td class="num-cell"><span class="pos">+3,125.00</span></td>
+                <td class="num-cell"><span class="pos">+339</span></td>
+                <td class="num-cell"><span class="pos">+767</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-429</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">35</td>
+                <td class="code-cell">2492</td>
+                <td class="name-cell">華新科</td>
+                <td class="num-cell">123.50</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-23.00</span></td>
+                <td class="num-cell"><span class="neg">-15.70%</span></td>
+                <td class="num-cell"><span class="pos">+3,550.00</span></td>
+                <td class="num-cell"><span class="pos">+935</span></td>
+                <td class="num-cell"><span class="pos">+1,362</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-428</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">22</td>
+                <td class="code-cell">4967</td>
+                <td class="name-cell">十銓</td>
+                <td class="num-cell">199.50</td>
+                <td class="num-cell"><span class="neg">-30.00</span></td>
+                <td class="num-cell"><span class="neg">-13.07%</span></td>
+                <td class="num-cell"><span class="neg">-57.00</span></td>
+                <td class="num-cell"><span class="neg">-22.22%</span></td>
+                <td class="num-cell"><span class="pos">+4,892.00</span></td>
+                <td class="num-cell"><span class="pos">+1,280</span></td>
+                <td class="num-cell"><span class="pos">+1,624</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-344</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">21</td>
+                <td class="code-cell">3016</td>
+                <td class="name-cell">嘉晶</td>
+                <td class="num-cell">55.50</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-12.20</span></td>
+                <td class="num-cell"><span class="neg">-18.02%</span></td>
+                <td class="num-cell"><span class="pos">+1,734.00</span></td>
+                <td class="num-cell"><span class="pos">+327</span></td>
+                <td class="num-cell"><span class="pos">+663</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-336</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">20</td>
+                <td class="code-cell">3149</td>
+                <td class="name-cell">正達</td>
+                <td class="num-cell">49.20</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-11.00</span></td>
+                <td class="num-cell"><span class="neg">-18.27%</span></td>
+                <td class="num-cell"><span class="pos">+6,639.00</span></td>
+                <td class="num-cell"><span class="pos">+1,730</span></td>
+                <td class="num-cell"><span class="pos">+2,040</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-310</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">37</td>
+                <td class="code-cell">2338</td>
+                <td class="name-cell">光罩</td>
+                <td class="num-cell">33.65</td>
+                <td class="num-cell"><span class="neg">-4.10</span></td>
+                <td class="num-cell"><span class="neg">-10.86%</span></td>
+                <td class="num-cell"><span class="neg">-8.75</span></td>
+                <td class="num-cell"><span class="neg">-20.64%</span></td>
+                <td class="num-cell"><span class="pos">+1,378.00</span></td>
+                <td class="num-cell"><span class="pos">+329</span></td>
+                <td class="num-cell"><span class="pos">+631</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-302</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">16</td>
+                <td class="code-cell">2329</td>
+                <td class="name-cell">華泰</td>
+                <td class="num-cell">50.20</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-11.60</span></td>
+                <td class="num-cell"><span class="neg">-18.77%</span></td>
+                <td class="num-cell"><span class="pos">+4,748.00</span></td>
+                <td class="num-cell"><span class="pos">+1,430</span></td>
+                <td class="num-cell"><span class="pos">+1,713</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-283</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">20</td>
+                <td class="code-cell">6189</td>
+                <td class="name-cell">豐藝</td>
+                <td class="num-cell">46.35</td>
+                <td class="num-cell"><span class="neg">-7.35</span></td>
+                <td class="num-cell"><span class="neg">-13.69%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+1,307.00</span></td>
+                <td class="num-cell"><span class="pos">+294</span></td>
+                <td class="num-cell"><span class="pos">+527</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-233</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">38</td>
+                <td class="code-cell">3704</td>
+                <td class="name-cell">合勤控</td>
+                <td class="num-cell">32.70</td>
+                <td class="num-cell"><span class="neg">-3.95</span></td>
+                <td class="num-cell"><span class="neg">-10.78%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+2,901.00</span></td>
+                <td class="num-cell"><span class="pos">+780</span></td>
+                <td class="num-cell"><span class="pos">+1,007</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-228</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">50</td>
+                <td class="code-cell">9955</td>
+                <td class="name-cell">佳龍</td>
+                <td class="num-cell">32.55</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-5.70</span></td>
+                <td class="num-cell"><span class="neg">-14.90%</span></td>
+                <td class="num-cell"><span class="pos">+948.00</span></td>
+                <td class="num-cell"><span class="pos">+224</span></td>
+                <td class="num-cell"><span class="pos">+378</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-154</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">14</td>
+                <td class="code-cell">6472</td>
+                <td class="name-cell">保瑞</td>
+                <td class="num-cell">490.00</td>
+                <td class="num-cell"><span class="neg">-94.00</span></td>
+                <td class="num-cell"><span class="neg">-16.10%</span></td>
+                <td class="num-cell"><span class="neg">-92.00</span></td>
+                <td class="num-cell"><span class="neg">-15.81%</span></td>
+                <td class="num-cell"><span class="pos">+4,107.00</span></td>
+                <td class="num-cell"><span class="pos">+705</span></td>
+                <td class="num-cell"><span class="pos">+851</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-146</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">49</td>
+                <td class="code-cell">3055</td>
+                <td class="name-cell">蔚華科</td>
+                <td class="num-cell">64.60</td>
+                <td class="num-cell"><span class="neg">-6.90</span></td>
+                <td class="num-cell"><span class="neg">-9.65%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+563.00</span></td>
+                <td class="num-cell"><span class="pos">+106</span></td>
+                <td class="num-cell"><span class="pos">+249</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-143</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">9</td>
+                <td class="code-cell">3686</td>
+                <td class="name-cell">達能</td>
+                <td class="num-cell">18.90</td>
+                <td class="num-cell"><span class="neg">-4.20</span></td>
+                <td class="num-cell"><span class="neg">-18.18%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+514.00</span></td>
+                <td class="num-cell"><span class="pos">+83</span></td>
+                <td class="num-cell"><span class="pos">+180</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-97</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">44</td>
+                <td class="code-cell">3050</td>
+                <td class="name-cell">鈺德</td>
+                <td class="num-cell">12.95</td>
+                <td class="num-cell"><span class="neg">-1.45</span></td>
+                <td class="num-cell"><span class="neg">-10.07%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+506.00</span></td>
+                <td class="num-cell"><span class="pos">+77</span></td>
+                <td class="num-cell"><span class="pos">+171</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-94</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">29</td>
+                <td class="code-cell">3708</td>
+                <td class="name-cell">上緯投控</td>
+                <td class="num-cell">103.00</td>
+                <td class="num-cell"><span class="neg">-14.00</span></td>
+                <td class="num-cell"><span class="neg">-11.97%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+555.00</span></td>
+                <td class="num-cell"><span class="pos">+99</span></td>
+                <td class="num-cell"><span class="pos">+188</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-89</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">26</td>
+                <td class="code-cell">2233</td>
+                <td class="name-cell">宇隆</td>
+                <td class="num-cell">223.00</td>
+                <td class="num-cell"><span class="neg">-32.00</span></td>
+                <td class="num-cell"><span class="neg">-12.55%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+806.00</span></td>
+                <td class="num-cell"><span class="pos">+165</span></td>
+                <td class="num-cell"><span class="pos">+253</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-88</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">18</td>
+                <td class="code-cell">8438</td>
+                <td class="name-cell">昶昕</td>
+                <td class="num-cell">56.10</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-12.70</span></td>
+                <td class="num-cell"><span class="neg">-18.46%</span></td>
+                <td class="num-cell"><span class="pos">+808.00</span></td>
+                <td class="num-cell"><span class="pos">+215</span></td>
+                <td class="num-cell"><span class="pos">+301</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-86</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">46</td>
+                <td class="code-cell">1623</td>
+                <td class="name-cell">大東電</td>
+                <td class="num-cell">205.00</td>
+                <td class="num-cell"><span class="neg">-22.50</span></td>
+                <td class="num-cell"><span class="neg">-9.89%</span></td>
+                <td class="num-cell"><span class="neg">-73.00</span></td>
+                <td class="num-cell"><span class="neg">-26.26%</span></td>
+                <td class="num-cell"><span class="pos">+308.00</span></td>
+                <td class="num-cell"><span class="pos">+43</span></td>
+                <td class="num-cell"><span class="pos">+125</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-82</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">37</td>
+                <td class="code-cell">2478</td>
+                <td class="name-cell">大毅</td>
+                <td class="num-cell">59.60</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-11.00</span></td>
+                <td class="num-cell"><span class="neg">-15.58%</span></td>
+                <td class="num-cell"><span class="pos">+1,490.00</span></td>
+                <td class="num-cell"><span class="pos">+900</span></td>
+                <td class="num-cell"><span class="pos">+965</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-65</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">23</td>
+                <td class="code-cell">3308</td>
+                <td class="name-cell">聯德</td>
+                <td class="num-cell">21.35</td>
+                <td class="num-cell"><span class="neg">-3.20</span></td>
+                <td class="num-cell"><span class="neg">-13.03%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+784.00</span></td>
+                <td class="num-cell"><span class="pos">+123</span></td>
+                <td class="num-cell"><span class="pos">+185</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-62</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">50</td>
+                <td class="code-cell">3257</td>
+                <td class="name-cell">虹冠電</td>
+                <td class="num-cell">60.00</td>
+                <td class="num-cell"><span class="neg">-6.40</span></td>
+                <td class="num-cell"><span class="neg">-9.64%</span></td>
+                <td class="num-cell"><span class="neg">-11.90</span></td>
+                <td class="num-cell"><span class="neg">-16.55%</span></td>
+                <td class="num-cell"><span class="pos">+271.00</span></td>
+                <td class="num-cell"><span class="pos">+44</span></td>
+                <td class="num-cell"><span class="pos">+101</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-57</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">42</td>
+                <td class="code-cell">3622</td>
+                <td class="name-cell">洋華</td>
+                <td class="num-cell">58.10</td>
+                <td class="num-cell"><span class="neg">-6.60</span></td>
+                <td class="num-cell"><span class="neg">-10.20%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+599.00</span></td>
+                <td class="num-cell"><span class="pos">+188</span></td>
+                <td class="num-cell"><span class="pos">+235</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-47</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">41</td>
+                <td class="code-cell">7788</td>
+                <td class="name-cell">松川精密</td>
+                <td class="num-cell">165.00</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-30.00</span></td>
+                <td class="num-cell"><span class="neg">-15.38%</span></td>
+                <td class="num-cell"><span class="pos">+440.00</span></td>
+                <td class="num-cell"><span class="pos">+36</span></td>
+                <td class="num-cell"><span class="pos">+64</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-28</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">28</td>
+                <td class="code-cell">2399</td>
+                <td class="name-cell">映泰</td>
+                <td class="num-cell">21.70</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-4.45</span></td>
+                <td class="num-cell"><span class="neg">-17.02%</span></td>
+                <td class="num-cell"><span class="pos">+1,459.00</span></td>
+                <td class="num-cell"><span class="pos">+332</span></td>
+                <td class="num-cell"><span class="pos">+356</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-24</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">19</td>
+                <td class="code-cell">9103</td>
+                <td class="name-cell">美德醫療-DR</td>
+                <td class="num-cell">5.15</td>
+                <td class="num-cell"><span class="neg">-0.82</span></td>
+                <td class="num-cell"><span class="neg">-13.74%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+810.00</span></td>
+                <td class="num-cell"><span class="">0</span></td>
+                <td class="num-cell"><span class="pos">+18</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-18</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">7</td>
+                <td class="code-cell">3040</td>
+                <td class="name-cell">遠見</td>
+                <td class="num-cell">42.20</td>
+                <td class="num-cell"><span class="neg">-9.90</span></td>
+                <td class="num-cell"><span class="neg">-19.00%</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="pos">+113.00</span></td>
+                <td class="num-cell"><span class="pos">+27</span></td>
+                <td class="num-cell"><span class="pos">+42</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-15</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">46</td>
+                <td class="code-cell">4571</td>
+                <td class="name-cell">鈞興-KY</td>
+                <td class="num-cell">172.00</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-30.50</span></td>
+                <td class="num-cell"><span class="neg">-15.06%</span></td>
+                <td class="num-cell"><span class="pos">+227.00</span></td>
+                <td class="num-cell"><span class="pos">+40</span></td>
+                <td class="num-cell"><span class="pos">+52</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-12</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">24</td>
+                <td class="code-cell">6168</td>
+                <td class="name-cell">宏齊</td>
+                <td class="num-cell">20.10</td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="na">N/A</span></td>
+                <td class="num-cell"><span class="neg">-4.40</span></td>
+                <td class="num-cell"><span class="neg">-17.96%</span></td>
+                <td class="num-cell"><span class="pos">+547.00</span></td>
+                <td class="num-cell"><span class="pos">+206</span></td>
+                <td class="num-cell"><span class="pos">+216</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-10</span></td>
+            </tr>
+            <tr>
+                <td class="rank-cell">4</td>
+                <td class="code-cell">1471</td>
+                <td class="name-cell">首利</td>
+                <td class="num-cell">10.80</td>
+                <td class="num-cell"><span class="neg">-2.65</span></td>
+                <td class="num-cell"><span class="neg">-19.70%</span></td>
+                <td class="num-cell"><span class="neg">-3.10</span></td>
+                <td class="num-cell"><span class="neg">-22.30%</span></td>
+                <td class="num-cell"><span class="pos">+1,888.00</span></td>
+                <td class="num-cell"><span class="pos">+6</span></td>
+                <td class="num-cell"><span class="pos">+13</span></td>
+                <td class="num-cell sell-highlight"><span class="neg">-8</span></td>
+            </tr></tbody></table>
+    </div>
+  </div>
+
+  <!-- ⚪ 無外資資料 -->
+  
+
+</div>
+
+<div class="footer">
+  資料來源: 富邦 e-Broker (跌幅排行) ｜ TWSE 臺灣證券交易所 (外資買賣超)<br>
+  ⚠ 本工具僅供參考，不構成任何投資建議。投資有風險，請自行判斷。
+</div>
+
+</body>
+</html>
